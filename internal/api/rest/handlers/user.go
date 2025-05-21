@@ -1,44 +1,93 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/api/rest"
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/dto"
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/repository"
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/services"
 	"github.com/gofiber/fiber/v2"
 )
 
 type UserHandler struct {
 	//user services
+	svc services.UserService
 }
 
 func SetupUserRoutes(rh *rest.RestHandler) {
 	app := rh.App
-	handler := UserHandler{}
 
-	app.Post("/register", handler.Register)
-	app.Post("/login", handler.Login)
+	svc := services.UserService{
+		Repo: repository.NewUserRepository(rh.DB),
+		Auth: rh.Auth,
+	}
+	handler := UserHandler{
+		svc: svc,
+	}
 
-	app.Get("/verify", handler.GetVerificationCode)
-	app.Post("/verify", handler.Verify)
-	app.Get("/profile", handler.GetProfile)
-	app.Post("/profile", handler.UpdateProfile)
+	pubRoutes := app.Group("/users")
 
-	app.Get("/cart", handler.GetCart)
-	app.Post("/cart", handler.AddToCart)
-	app.Get("/orders", handler.GetOrders)
-	app.Get("/order/:id", handler.GetOrderById)
+	pubRoutes.Post("/register", handler.Register)
+	pubRoutes.Post("/login", handler.Login)
 
-	app.Post("/become-seller", handler.BecomeSeller)
+	pvtRoutes := pubRoutes.Group("/", rh.Auth.Authorize)
+
+	pvtRoutes.Get("/verify", handler.GetVerificationCode)
+	pvtRoutes.Post("/verify", handler.Verify)
+	pvtRoutes.Get("/profile", handler.GetProfile)
+	pvtRoutes.Post("/profile", handler.UpdateProfile)
+
+	pvtRoutes.Get("/cart", handler.GetCart)
+	pvtRoutes.Post("/cart", handler.AddToCart)
+	pvtRoutes.Get("/orders", handler.GetOrders)
+	pvtRoutes.Get("/order/:id", handler.GetOrderById)
+
+	pvtRoutes.Post("/become-seller", handler.BecomeSeller)
 }
 
 func (h *UserHandler) Register(ctx *fiber.Ctx) error {
+	user := dto.UserSignup{}
+
+	if err := ctx.BodyParser(&user); err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "provide valid inputs",
+		})
+	}
+
+	token, err := h.svc.Signup(user)
+	if err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "error while sign up",
+		})
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
-		"message": "register",
+		"message": "signup succesfully",
+		"token":   token,
 	})
+
 }
 func (h *UserHandler) Login(ctx *fiber.Ctx) error {
+	loginInput := dto.UserLogin{}
+
+	if err := ctx.BodyParser(&loginInput); err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "provide valid inputs",
+		})
+	}
+
+	token, err := h.svc.Login(loginInput.Email, loginInput.Password)
+	if err != nil {
+		return ctx.Status(http.StatusUnauthorized).JSON(&fiber.Map{
+			"message": "please provide correct user email and password",
+		})
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
-		"message": "login",
+		"message": "logged in succesfully",
+		"token":   token,
 	})
 }
 func (h *UserHandler) Verify(ctx *fiber.Ctx) error {
@@ -57,8 +106,11 @@ func (h *UserHandler) UpdateProfile(ctx *fiber.Ctx) error {
 	})
 }
 func (h *UserHandler) GetProfile(ctx *fiber.Ctx) error {
+	user := h.svc.Auth.GetCurrentUser(ctx)
+	log.Println(user)
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "got profile",
+		"user":    user,
 	})
 }
 func (h *UserHandler) BecomeSeller(ctx *fiber.Ctx) error {

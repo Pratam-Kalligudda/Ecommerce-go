@@ -9,6 +9,8 @@ import (
 
 type AppConfig struct {
 	ServerPort string
+	Dsn        string
+	AppSecret  string
 }
 
 func SetupEnv() (config AppConfig, err error) {
@@ -17,10 +19,19 @@ func SetupEnv() (config AppConfig, err error) {
 	// }
 
 	serverPort := os.Getenv("HTTP_PORT")
-
 	if len(serverPort) < 1 {
 		return AppConfig{}, errors.New("couldnt load http port from env")
 	}
 
-	return AppConfig{ServerPort: serverPort}, nil
+	dsn := os.Getenv("DSN")
+	if len(dsn) < 1 {
+		return AppConfig{}, errors.New("couldnt load dsn from env")
+	}
+
+	appSecret := os.Getenv("APP_SECRET")
+	if len(dsn) < 1 {
+		return AppConfig{}, errors.New("couldnt load app secret from env")
+	}
+
+	return AppConfig{ServerPort: serverPort, Dsn: dsn, AppSecret: appSecret}, nil
 }

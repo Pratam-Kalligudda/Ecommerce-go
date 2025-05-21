@@ -1,18 +1,52 @@
 package services
 
-import "github.com/Pratam-Kalligudda/Ecommerce-go/internal/domain"
+import (
+	"errors"
+
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/domain"
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/dto"
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/helper"
+	"github.com/Pratam-Kalligudda/Ecommerce-go/internal/repository"
+)
 
 type UserService struct {
+	Repo repository.UserRepository
+	Auth helper.Auth
 }
 
-func (s UserService) Signup(input any) (string, error) {
-	return "", nil
+func (s UserService) Signup(input dto.UserSignup) (string, error) {
+	hashPassword, err := s.Auth.CreateHashedPassword(input.Password)
+	if err != nil {
+		return "", err
+	}
+
+	usr, err := s.Repo.CreateUser(domain.User{
+		Email:    input.Email,
+		Password: hashPassword,
+		Phone:    input.Phone,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return s.Auth.GenerateToken(usr.ID, usr.Email, usr.UserType)
 }
-func (s UserService) Login(input any) (string, error) {
-	return "", nil
+func (s UserService) Login(email string, password string) (string, error) {
+	user, err := s.findUserByEmail(email)
+	if err != nil {
+		return "", errors.New("user does not exists with the provided user email")
+	}
+	// var token string
+	if err := s.Auth.VerifyPassword(password, user.Password); err != nil {
+		return "", err
+	}
+
+	return s.Auth.GenerateToken(user.ID, user.Email, user.UserType)
 }
-func (s UserService) FindUserByEmail(email string) (*domain.User, error) {
-	return nil, nil
+func (s UserService) findUserByEmail(email string) (domain.User, error) {
+	user, err := s.Repo.FindUser(email)
+	return user, err
 }
 func (s UserService) GetVerificationCode(u domain.User) (int, error) {
 	return 0, nil
