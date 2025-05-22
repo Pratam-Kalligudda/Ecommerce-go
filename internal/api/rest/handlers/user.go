@@ -91,13 +91,42 @@ func (h *UserHandler) Login(ctx *fiber.Ctx) error {
 	})
 }
 func (h *UserHandler) Verify(ctx *fiber.Ctx) error {
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	var req dto.VerificationCodeInput
+
+	err := ctx.BodyParser(&req)
+	if err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "please provide valid input",
+		})
+	}
+
+	err = h.svc.VerifyCode(user.ID, req.Code)
+	if err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": err.Error(),
+		})
+	}
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
-		"message": "verify",
+		"message": "verified succesfully",
 	})
 }
 func (h *UserHandler) GetVerificationCode(ctx *fiber.Ctx) error {
+	user := h.svc.Auth.GetCurrentUser(ctx)
+
+	code, err := h.svc.GetVerificationCode(user)
+	if err != nil {
+		return ctx.Status(http.StatusInternalServerError).JSON(&fiber.Map{
+			"message": err.Error(),
+		})
+	}
+
+	// create verfication code
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "this is my verification code",
+		"data":    code,
 	})
 }
 func (h *UserHandler) UpdateProfile(ctx *fiber.Ctx) error {
@@ -114,8 +143,24 @@ func (h *UserHandler) GetProfile(ctx *fiber.Ctx) error {
 	})
 }
 func (h *UserHandler) BecomeSeller(ctx *fiber.Ctx) error {
+	user := h.svc.Auth.GetCurrentUser(ctx)
+	var req dto.SellerInput
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(http.StatusOK).JSON(&fiber.Map{
+			"message": err.Error(),
+		})
+	}
+
+	token, err := h.svc.BecomeSeller(user.ID, req)
+	if err != nil {
+		return ctx.Status(http.StatusUnauthorized).JSON(&fiber.Map{
+			"message": "failed to become seller",
+		})
+	}
+
 	return ctx.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "became seller",
+		"token":   token,
 	})
 }
 func (h *UserHandler) GetOrders(ctx *fiber.Ctx) error {
